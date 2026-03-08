@@ -623,6 +623,15 @@ function renderVendors(vendors, vendorForm, editVendorId) {
 }
 
 function renderCards(cards, cardForm, editCardId) {
+  const cardSearch = state.cardSearch || '';
+  const filtered = cards.filter(c => {
+    if (!cardSearch) return true;
+    const s = cardSearch.toLowerCase();
+    return (c.nickname||'').toLowerCase().includes(s) ||
+           (c.bank||'').toLowerCase().includes(s) ||
+           (c.network||'').toLowerCase().includes(s) ||
+           (c.last4||'').includes(s);
+  });
   return `<div style="padding-top:28px">
     <div style="background:#141415;border:1px solid #2a2a2c;padding:20px 20px 14px;margin-bottom:28px">
       <div style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase;margin-bottom:18px">${editCardId?'✏️  Edit Card':'＋  Add a Card'}</div>
@@ -652,11 +661,16 @@ function renderCards(cards, cardForm, editCardId) {
       </div>
     </div>
     ${cards.length===0 ? `<div style="text-align:center;padding:40px 0;color:#333;font-size:13px">No cards added yet</div>` : `
+    <div style="margin-bottom:14px">
+      <input class="input" style="width:100%;font-size:12px;box-sizing:border-box" placeholder="Search cards…"
+        value="${esc(cardSearch)}" autocomplete="off"
+        oninput="state.cardSearch=this.value;render()" />
+    </div>
     <div style="border:1px solid #1e1e1f">
       <div style="display:grid;grid-template-columns:14px 1fr 1fr 1fr auto;gap:12px;padding:8px 16px;background:#141415;font-size:9px;letter-spacing:0.12em;color:#444;text-transform:uppercase;align-items:center">
         <div></div><div>Nickname</div><div class="card-col-hide">Network · Last 4</div><div class="card-col-hide">Bank</div><div></div>
       </div>
-      ${cards.map(c=>`
+      ${filtered.map(c=>`
       <div class="card-row">
         <div style="width:12px;height:12px;border-radius:50%;background:${c.color||'#555'}"></div>
         <div>
@@ -670,6 +684,7 @@ function renderCards(cards, cardForm, editCardId) {
           <button class="btn btn-danger" onclick="deleteCard('${c.id}')">DEL</button>
         </div>
       </div>`).join('')}
+      ${filtered.length===0?`<div style="text-align:center;padding:30px 0;color:#333;font-size:13px">No cards match your search</div>`:''}
     </div>`}
   </div>`;
 }
