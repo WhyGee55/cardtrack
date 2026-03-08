@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CardTrack</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Mono', 'Courier New', monospace; background: #0f0f10; color: #e8e4d9; min-height: 100vh; }
+    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #1a1a1b; } ::-webkit-scrollbar-thumb { background: #3a3a3c; }
+    .btn { cursor: pointer; border: none; font-family: inherit; font-size: 13px; letter-spacing: 0.08em; transition: all 0.15s; }
+    .btn-primary { background: #c8f060; color: #0f0f10; padding: 12px 24px; font-weight: 500; }
+    .btn-primary:hover { background: #d9ff70; transform: translateY(-1px); }
+    .btn-ghost { background: transparent; color: #888; padding: 8px 14px; border: 1px solid #2a2a2c; }
+    .btn-ghost:hover { border-color: #555; color: #ccc; }
+    .btn-danger { background: transparent; color: #f06060; padding: 6px 10px; border: 1px solid #3a2020; font-size: 11px; }
+    .btn-danger:hover { background: #3a2020; }
+    .btn-sm { padding: 4px 10px !important; font-size: 10px !important; }
+    .field { margin-bottom: 18px; }
+    .label { font-size: 10px; letter-spacing: 0.12em; color: #666; text-transform: uppercase; margin-bottom: 7px; display: block; }
+    .input { width: 100%; background: #1a1a1b; border: 1px solid #2a2a2c; color: #e8e4d9; padding: 11px 14px; font-size: 14px; outline: none; transition: border 0.15s; }
+    .input:focus { border-color: #c8f060; }
+    .input::placeholder { color: #444; }
+    select.input option { background: #1a1a1b; }
+    .row { display: flex; gap: 12px; }
+    .row .field { flex: 1; }
+    .tag { display: inline-block; font-size: 10px; letter-spacing: 0.06em; padding: 3px 8px; background: #1e1e1f; color: #888; }
+    .tx-row { padding: 14px 18px; border-bottom: 1px solid #1e1e1f; display: flex; align-items: center; gap: 14px; transition: background 0.1s; }
+    .tx-row:hover { background: #161617; }
+    .nav-tab { cursor: pointer; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; padding: 10px 14px; border-bottom: 2px solid transparent; color: #666; transition: all 0.15s; white-space: nowrap; }
+    .nav-tab.active { color: #c8f060; border-bottom-color: #c8f060; }
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #c8f060; color: #0f0f10; padding: 10px 20px; font-size: 12px; letter-spacing: 0.08em; transform: translateY(60px); opacity: 0; transition: all 0.3s; pointer-events: none; z-index: 100; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.error { background: #f06060; color: #fff; }
+    .summary-bar { height: 6px; background: #c8f060; transition: width 0.6s; }
+    .entity-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; padding: 13px 16px; border-bottom: 1px solid #1a1a1b; align-items: center; transition: background 0.1s; }
+    .entity-row:hover { background: #161617; }
+    .card-row { display: grid; grid-template-columns: 14px 1fr 1fr 1fr auto; gap: 12px; padding: 13px 16px; border-bottom: 1px solid #1a1a1b; align-items: center; transition: background 0.1s; }
+    .card-row:hover { background: #161617; }
+    .cat-row { display: grid; grid-template-columns: 32px 1fr 60px auto; gap: 12px; padding: 13px 16px; border-bottom: 1px solid #1a1a1b; align-items: center; transition: background 0.1s; }
+    .cat-row:hover { background: #161617; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #333; border-top-color: #c8f060; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay { display: flex; align-items: center; justify-content: center; padding: 60px 0; gap: 12px; color: #444; font-size: 12px; }
+    .fab { position: fixed; bottom: 28px; right: 28px; width: 52px; height: 52px; background: #c8f060; color: #0f0f10; border: none; font-size: 26px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 300; box-shadow: 0 4px 20px rgba(200,240,96,0.25); transition: all 0.15s; }
+    .fab:hover { background: #d9ff70; transform: translateY(-2px); }
+    .autocomplete-wrap { position: relative; }
+    .autocomplete-list { position: absolute; top: 100%; left: 0; right: 0; background: #1e1e1f; border: 1px solid #3a3a3c; border-top: none; z-index: 50; max-height: 200px; overflow-y: auto; }
+    .autocomplete-item { padding: 10px 14px; font-size: 13px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; transition: background 0.1s; }
+    .autocomplete-item:hover, .autocomplete-item.hi { background: #2a2a2c; }
+    .ac-nick { color: #e8e4d9; }
+    .ac-long { font-size: 10px; color: #555; }
+    .autocomplete-add { padding: 10px 14px; font-size: 11px; color: #c8f060; cursor: pointer; border-top: 1px solid #2a2a2c; letter-spacing: 0.06em; }
+    .autocomplete-add:hover { background: #1a2a10; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .modal { background: #141415; border: 1px solid #2a2a2c; padding: 28px; width: 100%; max-width: 420px; }
+    .modal-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800; margin-bottom: 6px; }
+    .modal-sub { font-size: 11px; color: #555; margin-bottom: 22px; line-height: 1.7; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+    .split-row { display: grid; grid-template-columns: 1fr 120px; gap: 8px; margin-bottom: 8px; align-items: center; }
+    @media (max-width: 600px) { .row { flex-direction: column; } .nav-tab { padding: 10px 6px; font-size: 9px; } .card-col-hide { display: none; } .card-row { grid-template-columns: 14px 1fr auto; } .entity-col-hide { display: none; } .entity-row { grid-template-columns: 1fr auto; } .split-row { grid-template-columns: 1fr 100px; } .cat-row { grid-template-columns: 28px 1fr auto; } .cat-sort-hide { display: none; } }
+  </style>
+</head>
+<body>
+<div id="app" style="max-width:680px;margin:0 auto;padding:0 24px 80px"></div>
+<div id="modal-root"></div>
+
+<script>
+const SUPABASE_URL = 'https://vssybvmffvrmqwxgyelx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzc3lidm1mZnZybXF3eGd5ZWx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTQ1NTAsImV4cCI6MjA4ODMzMDU1MH0.cT10Vxu1sn-BkO3g5uhm5fGdKJjv5Efms9dY-cIrQSY';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const NETWORKS = ['Visa','Mastercard','Amex','Discover','Other'];
+const NETWORK_COLORS = { Visa:'#1a1f71', Mastercard:'#eb001b', Amex:'#007bc1', Discover:'#f76f20', Other:'#555' };
+const MAX_SPLITS = 5;
+
+// categories loaded from DB — helper to get display string
+function catDisplay(c) { return c ? `${c.emoji} ${c.name}` : '❓ Other'; }
+function getCategories() { return state.categories; }
+function defaultCat() { const cats = getCategories(); return cats.length > 0 ? catDisplay(cats[cats.length-1]) : '❓ Other'; }
+
+function blankSplits() {
+  return Array.from({length: MAX_SPLITS}, () => ({ category: defaultCat(), amount: '' }));
+}
+
+let state = {
+  view: 'list',
+  transactions: [], cards: [], vendors: [], categories: [],
+  loading: false,
+  filter: { card: 'All', category: 'All', search: '', rec: 'All' },
+  form: null, editId: null,
+  cardForm: blankCard(), editCardId: null,
+  vendorForm: blankVendor(), editVendorId: null,
+  catForm: blankCatForm(), editCatId: null, catSort: 'asc',
+  acText: '', acOpen: false, acIndex: -1,
+  modal: null,
+};
+
+function blankTx() {
+  return { date: today(), vendor_id: '', amount: '', card_id: '', note: '', reconciled: false, splits: blankSplits() };
+}
+function blankCard()    { return { nickname: '', network: 'Visa', last4: '', bank: '', color: '#1a1f71' }; }
+function blankVendor()  { return { long_name: '', nickname: '' }; }
+function blankCatForm() { return { emoji: '', name: '', sort_order: '' }; }
+function today()        { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmt(n)         { return new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n); }
+function dateStr(d)     { return new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function cardLabel(c)   { return c ? (c.last4 ? `${c.nickname||c.network} •${c.last4}` : (c.nickname||c.network)) : ''; }
+function vDisplay(v)    { return v ? (v.nickname || v.long_name) : ''; }
+function getCard(id)    { return state.cards.find(c => c.id === id); }
+function getVendor(id)  { return state.vendors.find(v => v.id === id); }
+function esc(s)         { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function activeSplits(splits) {
+  return splits.filter(s => s.amount !== '' && !isNaN(parseFloat(s.amount)) && parseFloat(s.amount) > 0);
+}
+function splitsSum(splits) {
+  return activeSplits(splits).reduce((sum, s) => sum + parseFloat(s.amount), 0);
+}
+function primaryCategory(t) {
+  if (t.splits && t.splits.length > 0) {
+    const active = activeSplits(t.splits);
+    if (active.length > 0) return active[0].category;
+  }
+  return t.category || defaultCat();
+}
+
+function showToast(msg, isErr=false) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr ? ' error' : '');
+  setTimeout(() => { if(t) t.className = 'toast'; }, 2800);
+}
+
+// ── DATA ──
+async function loadAll() {
+  state.loading = true; render();
+  const [r1, r2, r3, r4] = await Promise.all([
+    sb.from('cards').select('*').order('created_at'),
+    sb.from('transactions').select('*').order('date', { ascending: false }),
+    sb.from('vendors').select('*').order('long_name'),
+    sb.from('categories').select('*').order('sort_order'),
+  ]);
+  state.cards = r1.data || [];
+  state.transactions = r2.data || [];
+  state.vendors = r3.data || [];
+  state.categories = r4.data || [];
+  if (!state.form) state.form = blankTx();
+  state.loading = false;
+  render();
+}
+
+async function saveCard() {
+  const f = state.cardForm;
+  if (!f.network) return;
+  const op = state.editCardId
+    ? sb.from('cards').update(f).eq('id', state.editCardId)
+    : sb.from('cards').insert(f);
+  const { error } = await op;
+  if (error) { showToast('Error saving card', true); return; }
+  showToast('Card saved ✓');
+  state.cardForm = blankCard(); state.editCardId = null;
+  await loadAll();
+}
+async function deleteCard(id) { await sb.from('cards').delete().eq('id', id); await loadAll(); }
+
+async function saveVendorFromForm() {
+  const f = state.vendorForm;
+  if (!f.long_name.trim()) return;
+  const op = state.editVendorId
+    ? sb.from('vendors').update(f).eq('id', state.editVendorId)
+    : sb.from('vendors').insert(f);
+  const { error } = await op;
+  if (error) { showToast('Error saving vendor', true); return; }
+  showToast('Vendor saved ✓');
+  state.vendorForm = blankVendor(); state.editVendorId = null;
+  await loadAll();
+}
+async function deleteVendor(id) { await sb.from('vendors').delete().eq('id', id); await loadAll(); }
+
+async function saveCat() {
+  const f = state.catForm;
+  if (!f.name.trim()) { showToast('Name is required', true); return; }
+  const payload = {
+    emoji: f.emoji.trim() || '❓',
+    name: f.name.trim(),
+    sort_order: 0
+  };
+  const op = state.editCatId
+    ? sb.from('categories').update(payload).eq('id', state.editCatId)
+    : sb.from('categories').insert(payload);
+  const { error } = await op;
+  if (error) { showToast('Error saving category', true); return; }
+  showToast('Category saved ✓');
+  state.catForm = blankCatForm(); state.editCatId = null;
+  await loadAll();
+}
+async function deleteCat(id) { await sb.from('categories').delete().eq('id', id); await loadAll(); }
+
+async function saveTx() {
+  const f = state.form;
+  if (!f.vendor_id) { showToast('Please select a vendor', true); return; }
+  const topAmount = parseFloat(f.amount);
+  if (!f.amount || isNaN(topAmount) || topAmount <= 0) { showToast('Please enter a valid amount', true); return; }
+  const active = activeSplits(f.splits);
+  if (active.length === 0) { showToast('Please enter at least one category amount', true); return; }
+  const sum = splitsSum(f.splits);
+  const diff = Math.abs(sum - topAmount);
+  if (diff > 0.005) {
+    const dir = sum > topAmount ? 'over' : 'under';
+    showToast(`Category total ${fmt(sum)} is ${fmt(diff)} ${dir} the transaction amount ${fmt(topAmount)}`, true);
+    return;
+  }
+  const payload = {
+    date: f.date, vendor_id: f.vendor_id, amount: topAmount,
+    category: active[0].category, splits: active,
+    card_id: f.card_id || null, note: f.note || null, reconciled: f.reconciled || false
+  };
+  const op = state.editId
+    ? sb.from('transactions').update(payload).eq('id', state.editId)
+    : sb.from('transactions').insert(payload);
+  const { error } = await op;
+  if (error) { showToast('Error saving transaction', true); return; }
+  showToast('Saved ✓');
+  state.form = blankTx(); state.editId = null;
+  state.acText = ''; state.acOpen = false; state.view = 'list';
+  await loadAll();
+}
+async function deleteTx(id) { await sb.from('transactions').delete().eq('id', id); await loadAll(); }
+
+// ── AUTOCOMPLETE ──
+function acMatches() {
+  if (!state.acText.trim()) return [];
+  const q = state.acText.toLowerCase();
+  return state.vendors.filter(v =>
+    v.long_name.toLowerCase().includes(q) || (v.nickname && v.nickname.toLowerCase().includes(q))
+  );
+}
+function acSelect(vendorId) {
+  const vendor = state.vendors.find(v => v.id === vendorId);
+  if (!vendor) return;
+  state.form.vendor_id = vendor.id;
+  state.acText = vDisplay(vendor);
+  state.acOpen = false; state.acIndex = -1; render();
+}
+function acInput(val) {
+  state.acText = val; state.form.vendor_id = '';
+  state.acOpen = true; state.acIndex = -1; render();
+}
+function acKeydown(e) {
+  const matches = acMatches();
+  if (e.key === 'ArrowDown') { e.preventDefault(); state.acIndex = Math.min(state.acIndex+1, matches.length-1); render(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); state.acIndex = Math.max(state.acIndex-1, -1); render(); }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (state.acIndex >= 0 && matches[state.acIndex]) acSelect(matches[state.acIndex].id);
+    else if (matches.length === 1) acSelect(matches[0].id);
+    else if (state.acText.trim()) openAddVendorModal(state.acText.trim());
+  } else if (e.key === 'Escape') { state.acOpen = false; render(); }
+}
+function openAddVendorModal(name) {
+  state.acOpen = false; state.modal = { longName: name, nickname: '' }; render();
+}
+async function confirmAddVendor() {
+  const { longName, nickname } = state.modal;
+  const { data, error } = await sb.from('vendors').insert({ long_name: longName, nickname: nickname||'' }).select().single();
+  if (error) { showToast('Error adding vendor', true); return; }
+  state.vendors = [...state.vendors, data];
+  state.form.vendor_id = data.id; state.acText = vDisplay(data);
+  state.modal = null; showToast('Vendor added ✓'); render();
+}
+function cancelModal() { state.modal = null; render(); }
+function updateModalField(k, v) { if (state.modal) state.modal[k] = v; }
+
+// ── SPLIT HELPERS ──
+function updateSplit(i, field, val) {
+  state.form.splits[i][field] = val;
+  if (field === 'category') render();
+  else updateSplitSummary();
+}
+function updateSplitSummary() {
+  const sum = splitsSum(state.form.splits);
+  const topAmount = parseFloat(state.form.amount) || 0;
+  const diff = Math.abs(sum - topAmount);
+  const hasSum = sum > 0;
+  const balanced = hasSum && topAmount > 0 && diff <= 0.005;
+  const unbalanced = hasSum && topAmount > 0 && diff > 0.005;
+  const totalLabel = document.getElementById('split-total-label');
+  const totalAmt = document.getElementById('split-total-amt');
+  const totalBtn = document.getElementById('split-use-btn');
+  if (!totalLabel || !totalAmt) return;
+  totalLabel.innerHTML = `<span style="font-size:10px;color:#555;letter-spacing:0.08em">TOTAL</span>` +
+    (balanced ? ` <span style="font-size:10px;color:#c8f060">✓ balanced</span>` : '') +
+    (unbalanced ? ` <span style="font-size:10px;color:#f06060">✗ ${sum > topAmount ? '+' : '-'}${fmt(diff)}</span>` : '');
+  totalAmt.innerHTML = `<span style="font-size:13px;font-weight:500;${balanced?'color:#c8f060':unbalanced?'color:#f06060':'color:#888'}">${hasSum ? fmt(sum) : '—'}</span>`;
+  if (totalBtn) totalBtn.style.display = (hasSum && !balanced) ? 'inline-block' : 'none';
+}
+function useSplitSum() {
+  const sum = splitsSum(state.form.splits);
+  if (sum > 0) { state.form.amount = sum.toFixed(2); render(); }
+}
+
+// ── RENDER ──
+function render() {
+  const app = document.getElementById('app');
+  const { view, transactions, cards, vendors, categories, loading, filter, form, editId, cardForm, editCardId, vendorForm, editVendorId, catForm, editCatId } = state;
+
+  const filtered = transactions.filter(t => {
+    if (filter.card !== 'All' && t.card_id !== filter.card) return false;
+    if (filter.category !== 'All') {
+      const cats = t.splits ? t.splits.map(s=>s.category) : [t.category];
+      if (!cats.includes(filter.category)) return false;
+    }
+    if (filter.rec === 'Y' && !t.reconciled) return false;
+    if (filter.rec === 'N' && t.reconciled) return false;
+    if (filter.search) {
+      const v = getVendor(t.vendor_id);
+      const s = (v ? vDisplay(v)+' '+v.long_name : '').toLowerCase();
+      if (!s.includes(filter.search.toLowerCase())) return false;
+    }
+    return true;
+  });
+
+  const total = filtered.reduce((s,t) => s + parseFloat(t.amount), 0);
+  const grandTotal = transactions.reduce((s,t) => s + parseFloat(t.amount), 0);
+
+  const byCategory = {};
+  transactions.forEach(t => {
+    const splits = t.splits && t.splits.length > 0 ? t.splits : [{category: t.category||defaultCat(), amount: t.amount}];
+    splits.forEach(s => { if (s.amount) byCategory[s.category] = (byCategory[s.category]||0) + parseFloat(s.amount); });
+  });
+
+  const TABS = ['list','simple','add','vendors','cards','categories','summary'];
+  const TAB_LABELS = { list:'X-Act Det', simple:'X-Act Simp', add: editId?'Edit':'+ New', vendors:'Vendors', cards:'My Cards', categories:'Categories', summary:'Summary' };
+
+  app.innerHTML = `
+    <div style="padding:28px 0 0">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
+        <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-0.02em">CARD<span style="color:#c8f060">TRACK</span></div>
+        <div style="font-size:11px;color:#555;letter-spacing:0.1em">${transactions.length} ENTRIES · ${vendors.length} VENDORS${(view==='list'||view==='simple')&&filtered.length<transactions.length ? ' · '+fmt(total) : ''}</div>
+      </div>
+      <div style="display:flex;border-bottom:1px solid #1e1e1f;overflow-x:auto">
+        ${TABS.map(v=>`<div class="nav-tab${view===v?' active':''}" onclick="setView('${v}')">${TAB_LABELS[v]}</div>`).join('')}
+      </div>
+    </div>
+    ${view==='vendors'    ? renderVendors(vendors,vendorForm,editVendorId) : ''}
+    ${view==='cards'      ? renderCards(cards,cardForm,editCardId) : ''}
+    ${view==='categories' ? renderCategories(categories,catForm,editCatId) : ''}
+    ${view==='add'        ? renderForm(form||blankTx(),cards,categories,editId) : ''}
+    ${view==='list'       ? renderList(filtered,transactions,filter,cards,categories,vendors,total,loading) : ''}
+    ${view==='simple'     ? renderSimple(filtered,transactions,filter,cards,categories,vendors,total,loading) : ''}
+    ${view==='summary'    ? renderSummary(transactions,byCategory,grandTotal,cards,vendors) : ''}
+    ${(view==='list'||view==='simple') ? `<button class="fab" onclick="setView('add')">+</button>` : ''}
+    <div id="toast" class="toast"></div>
+  `;
+
+  const mr = document.getElementById('modal-root');
+  if (!state.modal) { mr.innerHTML = ''; }
+  else if (state.modal.type === 'tx') {
+    const t = state.transactions.find(x => x.id === state.modal.id);
+    if (!t) { mr.innerHTML = ''; }
+    else {
+      const card = getCard(t.card_id), vendor = getVendor(t.vendor_id);
+      const splits = t.splits && t.splits.length > 0 ? t.splits : null;
+      mr.innerHTML = `
+        <div class="modal-overlay" onclick="closeTxModal()">
+          <div class="modal" onclick="event.stopPropagation()" style="max-width:380px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px">
+              <div>
+                <div style="font-size:24px;line-height:1;margin-bottom:8px">${primaryCategory(t).split(' ')[0]}</div>
+                <div style="font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#c8f060">${fmt(t.amount)}</div>
+              </div>
+              <button onclick="closeTxModal()" style="background:none;border:none;color:#555;font-size:20px;cursor:pointer;padding:0;line-height:1">✕</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid #1e1e1f">
+                <span style="font-size:10px;letter-spacing:0.1em;color:#555;text-transform:uppercase">Vendor</span>
+                <span style="font-size:13px">${vendor ? esc(vDisplay(vendor)) : '<span style="color:#444">—</span>'}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid #1e1e1f">
+                <span style="font-size:10px;letter-spacing:0.1em;color:#555;text-transform:uppercase">Date</span>
+                <span style="font-size:13px">${dateStr(t.date)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid #1e1e1f">
+                <span style="font-size:10px;letter-spacing:0.1em;color:#555;text-transform:uppercase">Card</span>
+                <span style="font-size:13px">${card ? `<span style="display:inline-flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:${card.color||'#555'};display:inline-block"></span>${esc(cardLabel(card))}</span>` : '<span style="color:#444">—</span>'}</span>
+              </div>
+              <div style="padding-bottom:10px;border-bottom:1px solid #1e1e1f">
+                <div style="font-size:10px;letter-spacing:0.1em;color:#555;text-transform:uppercase;margin-bottom:8px">Categories</div>
+                ${splits && splits.length > 1
+                  ? splits.map(s=>`<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px"><span style="color:#888">${esc(s.category)}</span><span>${fmt(s.amount)}</span></div>`).join('')
+                  : `<div style="font-size:13px">${esc(primaryCategory(t))}</div>`
+                }
+              </div>
+              ${t.note ? `<div style="display:flex;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid #1e1e1f">
+                <span style="font-size:10px;letter-spacing:0.1em;color:#555;text-transform:uppercase">Note</span>
+                <span style="font-size:13px;color:#888;font-style:italic">${esc(t.note)}</span>
+              </div>` : ''}
+              <div style="display:flex;justify-content:space-between;padding-bottom:10px">
+                <span style="font-size:10px;letter-spacing:0.1em;color:#555;text-transform:uppercase">Reconciled</span>
+                <span style="font-size:13px">${t.reconciled ? '<span style="color:#6db86d">Yes ✓</span>' : '<span style="color:#555">No</span>'}</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:20px;align-items:center">
+              <button class="btn btn-ghost btn-sm" onclick="closeTxModal();startEditTx('${t.id}')">EDIT</button>
+              <div style="display:flex;gap:6px;margin-left:auto;align-items:center">
+                ${(()=>{ const idx=state.modal.filteredIds.indexOf(t.id); const total=state.modal.filteredIds.length; return `
+                <button class="btn btn-ghost btn-sm" onclick="txModalNav(-1)" ${idx<=0?'disabled style="opacity:0.3"':''}>◀</button>
+                <span style="font-size:10px;color:#444;letter-spacing:0.06em">${idx+1} / ${total}</span>
+                <button class="btn btn-ghost btn-sm" onclick="txModalNav(1)" ${idx>=total-1?'disabled style="opacity:0.3"':''}>▶</button>
+                `; })()}
+                <button class="btn btn-ghost btn-sm" onclick="closeTxModal()">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+  } else {
+    const { longName, nickname } = state.modal;
+    mr.innerHTML = `
+      <div class="modal-overlay" onclick="cancelModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+          <div class="modal-title">Add new vendor?</div>
+          <div class="modal-sub">"${esc(longName)}" isn't in your list yet.<br/>Add it now so it's available next time.</div>
+          <div class="field">
+            <label class="label">Full Name</label>
+            <input class="input" value="${esc(longName)}" readonly style="color:#555" />
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label class="label">Nickname (shown in transactions)</label>
+            <input class="input" id="modal-nick" placeholder="e.g. Whole Foods" value="${esc(nickname||'')}"
+              oninput="updateModalField('nickname',this.value)" autocomplete="off" />
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-primary" onclick="confirmAddVendor()">ADD &amp; CONTINUE</button>
+            <button class="btn btn-ghost" onclick="cancelModal()">CANCEL</button>
+          </div>
+        </div>
+      </div>`;
+    setTimeout(() => { const n=document.getElementById('modal-nick'); if(n) n.focus(); }, 50);
+  }
+}
+
+function renderCategories(categories, catForm, editCatId) {
+  const sorted = [...categories].sort((a,b) =>
+    state.catSort === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+  );
+  const arrow = state.catSort === 'asc' ? ' ▲' : ' ▼';
+  return `<div style="padding-top:28px">
+    <div style="background:#141415;border:1px solid #2a2a2c;padding:20px 20px 14px;margin-bottom:28px">
+      <div style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase;margin-bottom:18px">${editCatId?'✏️  Edit Category':'＋  Add a Category'}</div>
+      <div class="row">
+        <div class="field" style="max-width:80px"><label class="label">Emoji</label>
+          <input class="input" placeholder="🏷️" value="${esc(catForm.emoji||'')}" maxlength="4" autocomplete="off"
+            oninput="updateCatForm('emoji',this.value)" autocomplete="off" /></div>
+        <div class="field"><label class="label">Name</label>
+          <input class="input" placeholder="e.g. Groceries" value="${esc(catForm.name||'')}" autocomplete="off"
+            oninput="updateCatForm('name',this.value)" autocomplete="off" /></div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary" onclick="saveCat()">${editCatId?'SAVE CATEGORY':'ADD CATEGORY'}</button>
+        ${editCatId?`<button class="btn btn-ghost" onclick="cancelCatEdit()">CANCEL</button>`:''}
+      </div>
+    </div>
+    ${categories.length===0 ? `<div style="text-align:center;padding:40px 0;color:#333;font-size:13px">No categories yet</div>` : `
+    <div style="border:1px solid #1e1e1f">
+      <div style="display:grid;grid-template-columns:32px 1fr auto;gap:12px;padding:8px 16px;background:#141415;font-size:9px;letter-spacing:0.12em;color:#444;text-transform:uppercase;align-items:center">
+        <div></div>
+        <div style="cursor:pointer;user-select:none" onclick="toggleCatSort()">Name${arrow}</div>
+        <div></div>
+      </div>
+      ${sorted.map(c=>`
+      <div class="cat-row" style="grid-template-columns:32px 1fr auto">
+        <div style="font-size:20px;line-height:1">${esc(c.emoji)}</div>
+        <div style="font-size:13px;font-weight:500">${esc(c.name)}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="startEditCat('${c.id}')">EDIT</button>
+          <button class="btn btn-danger" onclick="deleteCat('${c.id}')">DEL</button>
+        </div>
+      </div>`).join('')}
+    </div>`}
+  </div>`;
+}
+
+function renderForm(form, cards, categories, editId) {
+  const matches = acMatches();
+  const selVendor = getVendor(form.vendor_id);
+  const sum = splitsSum(form.splits);
+  const topAmount = parseFloat(form.amount) || 0;
+  const diff = Math.abs(sum - topAmount);
+  const hasSum = sum > 0;
+  const balanced = hasSum && topAmount > 0 && diff <= 0.005;
+  const unbalanced = hasSum && topAmount > 0 && diff > 0.005;
+
+  return `<div style="padding-top:28px">
+    <div class="row">
+      <div class="field"><label class="label">Date</label>
+        <input type="date" class="input" value="${form.date}" onchange="updateForm('date',this.value)" /></div>
+      <div class="field"><label class="label">Amount (USD)</label>
+        <input type="number" step="0.01" min="0" class="input" placeholder="0.00" value="${form.amount}"
+          oninput="updateForm('amount',this.value)" /></div>
+    </div>
+
+    <div class="field">
+      <label class="label">Vendor</label>
+      <div class="autocomplete-wrap">
+        <input class="input" id="vendor-ac" placeholder="Type to search vendors…" value="${esc(state.acText)}"
+          oninput="acInput(this.value)" onkeydown="acKeydown(event)" onfocus="state.acOpen=true;" autocomplete="off" />
+        ${state.acOpen && state.acText.trim() ? `
+        <div class="autocomplete-list">
+          ${matches.map((v,i)=>`
+            <div class="autocomplete-item${state.acIndex===i?' hi':''}" onmousedown="event.preventDefault();acSelect('${v.id}')">
+              <span class="ac-nick">${esc(vDisplay(v))}</span>
+              ${v.nickname && v.long_name!==v.nickname ? `<span class="ac-long">${esc(v.long_name)}</span>` : ''}
+            </div>`).join('')}
+          <div class="autocomplete-add" onmousedown="event.preventDefault();openAddVendorModal('${esc(state.acText.trim())}')">
+            ＋ Add "${esc(state.acText.trim())}" as new vendor
+          </div>
+        </div>` : ''}
+      </div>
+      ${selVendor ? `<div style="font-size:10px;color:#c8f060;margin-top:6px;letter-spacing:0.06em">✓ ${esc(vDisplay(selVendor))}</div>` : ''}
+    </div>
+
+    <div class="field">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+        <label class="label" style="margin-bottom:0">Categories</label>
+        <span style="font-size:9px;color:#444;letter-spacing:0.08em">UP TO 5 · AMOUNTS MUST BALANCE</span>
+      </div>
+      <div style="background:#141415;border:1px solid #2a2a2c;padding:14px 14px 8px">
+        <div style="display:grid;grid-template-columns:1fr 120px;gap:8px;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid #1e1e1f">
+          <span style="font-size:9px;letter-spacing:0.12em;color:#444;text-transform:uppercase">Category</span>
+          <span style="font-size:9px;letter-spacing:0.12em;color:#444;text-transform:uppercase">Amount</span>
+        </div>
+        ${form.splits.map((s,i) => `
+        <div class="split-row">
+          <select class="input" style="font-size:12px;padding:8px 10px" onchange="updateSplit(${i},'category',this.value)">
+            ${categories.map(c=>{const cd=catDisplay(c); return `<option${s.category===cd?' selected':''}>${cd}</option>`;}).join('')}
+          </select>
+          <input type="number" step="0.01" min="0" class="input" style="font-size:12px;padding:8px 10px"
+            placeholder="0.00" value="${esc(String(s.amount))}"
+            oninput="updateSplit(${i},'amount',this.value)"
+            onblur="updateSplit(${i},'amount',this.value)" />
+        </div>`).join('')}
+        <div style="display:grid;grid-template-columns:1fr 120px;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #1e1e1f;align-items:center">
+          <div id="split-total-label" style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:10px;color:#555;letter-spacing:0.08em">TOTAL</span>
+            ${balanced ? `<span style="font-size:10px;color:#c8f060">✓ balanced</span>` : ''}
+            ${unbalanced ? `<span style="font-size:10px;color:#f06060">✗ ${sum > topAmount ? '+' : '-'}${fmt(diff)}</span>` : ''}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div id="split-total-amt"><span style="font-size:13px;font-weight:500;${balanced?'color:#c8f060':unbalanced?'color:#f06060':'color:#888'}">${hasSum ? fmt(sum) : '—'}</span></div>
+            <button id="split-use-btn" class="btn btn-ghost" style="padding:3px 8px;font-size:9px;letter-spacing:0.08em;white-space:nowrap;${hasSum && !balanced ? '' : 'display:none'}" onclick="useSplitSum()">→ AMT</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field"><label class="label">Card</label>
+        <select class="input" onchange="updateForm('card_id',this.value)">
+          <option value="">— Select card —</option>
+          ${cards.map(c=>`<option value="${c.id}"${form.card_id===c.id?' selected':''}>${esc(cardLabel(c))}</option>`).join('')}
+          ${cards.length===0?`<option disabled>Add cards in My Cards first</option>`:''}
+        </select></div>
+      <div class="field"><label class="label">Note (optional)</label>
+        <input class="input" placeholder="Any detail…" value="${esc(form.note||'')}" oninput="updateForm('note',this.value)" autocomplete="off" /></div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#666">
+        <input type="checkbox" ${form.reconciled?'checked':''} onchange="updateForm('reconciled',this.checked)"
+          style="width:16px;height:16px;accent-color:#c8f060;cursor:pointer" />
+        Rec?
+      </label>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="saveTx()">${editId?'SAVE CHANGES':'ADD TRANSACTION'}</button>
+      <button class="btn btn-ghost" onclick="cancelTxEdit()">CANCEL</button>
+    </div>
+  </div>`;
+}
+
+function renderVendors(vendors, vendorForm, editVendorId) {
+  return `<div style="padding-top:28px">
+    <div style="background:#141415;border:1px solid #2a2a2c;padding:20px 20px 14px;margin-bottom:28px">
+      <div style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase;margin-bottom:18px">${editVendorId?'✏️  Edit Vendor':'＋  Add a Vendor'}</div>
+      <div class="row">
+        <div class="field"><label class="label">Full Name</label>
+          <input class="input" placeholder="e.g. Whole Foods Market" value="${esc(vendorForm.long_name||'')}" autocomplete="off"
+            oninput="updateVendorForm('long_name',this.value)" /></div>
+        <div class="field"><label class="label">Nickname</label>
+          <input class="input" placeholder="e.g. Whole Foods" value="${esc(vendorForm.nickname||'')}" autocomplete="off"
+            oninput="updateVendorForm('nickname',this.value)" /></div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary" onclick="saveVendorFromForm()">${editVendorId?'SAVE VENDOR':'ADD VENDOR'}</button>
+        ${editVendorId?`<button class="btn btn-ghost" onclick="cancelVendorEdit()">CANCEL</button>`:''}
+      </div>
+    </div>
+    ${vendors.length===0 ? `<div style="text-align:center;padding:40px 0;color:#333;font-size:13px">No vendors yet</div>` : `
+    <div style="border:1px solid #1e1e1f">
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:12px;padding:8px 16px;background:#141415;font-size:9px;letter-spacing:0.12em;color:#444;text-transform:uppercase">
+        <div>Full Name</div><div class="entity-col-hide">Nickname</div><div></div>
+      </div>
+      ${vendors.map(v=>`
+      <div class="entity-row">
+        <div>
+          <div style="font-size:13px;font-weight:500">${esc(v.long_name)}</div>
+          <div style="font-size:10px;color:#555;margin-top:2px">${esc(v.nickname||'')}</div>
+        </div>
+        <div class="entity-col-hide" style="font-size:12px;color:#888">${v.nickname?esc(v.nickname):'<span style="color:#333">—</span>'}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="startEditVendor('${v.id}')">EDIT</button>
+          <button class="btn btn-danger" onclick="deleteVendor('${v.id}')">DEL</button>
+        </div>
+      </div>`).join('')}
+    </div>`}
+  </div>`;
+}
+
+function renderCards(cards, cardForm, editCardId) {
+  return `<div style="padding-top:28px">
+    <div style="background:#141415;border:1px solid #2a2a2c;padding:20px 20px 14px;margin-bottom:28px">
+      <div style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase;margin-bottom:18px">${editCardId?'✏️  Edit Card':'＋  Add a Card'}</div>
+      <div class="row">
+        <div class="field"><label class="label">Nickname / Label</label>
+          <input class="input" placeholder="e.g. Chase Sapphire" value="${esc(cardForm.nickname||'')}" autocomplete="off"
+            oninput="updateCardForm('nickname',this.value)" /></div>
+        <div class="field"><label class="label">Network</label>
+          <select class="input" onchange="updateCardForm('network',this.value)">
+            ${NETWORKS.map(n=>`<option${cardForm.network===n?' selected':''}>${n}</option>`).join('')}
+          </select></div>
+      </div>
+      <div class="row">
+        <div class="field"><label class="label">Last 4 Digits</label>
+          <input class="input" placeholder="4242" maxlength="4" value="${esc(cardForm.last4||'')}" autocomplete="off"
+            oninput="updateCardForm('last4',this.value.replace(/\\D/g,'').slice(0,4))" /></div>
+        <div class="field"><label class="label">Issuing Bank</label>
+          <input class="input" placeholder="e.g. Chase, Citi" value="${esc(cardForm.bank||'')}" autocomplete="off"
+            oninput="updateCardForm('bank',this.value)" /></div>
+        <div class="field" style="max-width:72px"><label class="label">Color</label>
+          <input type="color" class="input" style="padding:4px;height:44px;cursor:pointer" value="${cardForm.color||'#1a1f71'}"
+            oninput="updateCardForm('color',this.value)" /></div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary" onclick="saveCard()">${editCardId?'SAVE CARD':'ADD CARD'}</button>
+        ${editCardId?`<button class="btn btn-ghost" onclick="cancelCardEdit()">CANCEL</button>`:''}
+      </div>
+    </div>
+    ${cards.length===0 ? `<div style="text-align:center;padding:40px 0;color:#333;font-size:13px">No cards added yet</div>` : `
+    <div style="border:1px solid #1e1e1f">
+      <div style="display:grid;grid-template-columns:14px 1fr 1fr 1fr auto;gap:12px;padding:8px 16px;background:#141415;font-size:9px;letter-spacing:0.12em;color:#444;text-transform:uppercase;align-items:center">
+        <div></div><div>Nickname</div><div class="card-col-hide">Network · Last 4</div><div class="card-col-hide">Bank</div><div></div>
+      </div>
+      ${cards.map(c=>`
+      <div class="card-row">
+        <div style="width:12px;height:12px;border-radius:50%;background:${c.color||'#555'}"></div>
+        <div>
+          <div style="font-size:13px;font-weight:500">${c.nickname||'<span style="color:#555">—</span>'}</div>
+          <div style="font-size:10px;color:#555;margin-top:2px">${c.network}${c.last4?' •'+c.last4:''}</div>
+        </div>
+        <div class="card-col-hide" style="font-size:12px;color:#888">${c.network}${c.last4?`<span style="color:#c8f060"> •${c.last4}</span>`:''}</div>
+        <div class="card-col-hide" style="font-size:12px;color:#666">${c.bank||'<span style="color:#333">—</span>'}</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-sm" onclick="startEditCard('${c.id}')">EDIT</button>
+          <button class="btn btn-danger" onclick="deleteCard('${c.id}')">DEL</button>
+        </div>
+      </div>`).join('')}
+    </div>`}
+  </div>`;
+}
+
+function renderList(filtered, transactions, filter, cards, categories, vendors, total, loading) {
+  const catOptions = categories.map(c => catDisplay(c));
+  return `<div style="padding-top:24px">
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <input class="input" style="flex:1 1 140px;font-size:12px" placeholder="Search vendors…" value="${esc(filter.search||'')}"
+        oninput="state.filter.search=this.value;renderFilteredList()" autocomplete="off" />
+      <select class="input" style="flex:0 1 150px;font-size:12px" onchange="updateFilter('card',this.value)">
+        <option value="All"${filter.card==='All'?' selected':''}>All cards</option>
+        ${cards.map(c=>`<option value="${c.id}"${filter.card===c.id?' selected':''}>${esc(cardLabel(c))}</option>`).join('')}
+      </select>
+      <select class="input" style="flex:0 1 150px;font-size:12px" onchange="updateFilter('category',this.value)">
+        <option value="All"${filter.category==='All'?' selected':''}>All categories</option>
+        ${catOptions.map(c=>`<option${filter.category===c?' selected':''}>${c}</option>`).join('')}
+      </select>
+      <select class="input" style="flex:0 1 130px;font-size:12px" onchange="updateFilter('rec',this.value)">
+        <option value="All"${filter.rec==='All'?' selected':''}>All</option>
+        <option value="N"${filter.rec==='N'?' selected':''}>Unreconciled</option>
+        <option value="Y"${filter.rec==='Y'?' selected':''}>Reconciled</option>
+      </select>
+    </div>
+    <div id="list-count-bar" style="background:#161617;padding:12px 18px;margin-bottom:2px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase">Showing ${filtered.length} of ${transactions.length}</span>
+      <span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#c8f060">${fmt(total)}</span>
+    </div>
+    ${loading?`<div class="loading-overlay"><div class="spinner"></div><span>Loading…</span></div>`:''}
+    ${!loading&&filtered.length===0?`<div style="text-align:center;padding:60px 0;color:#333;font-size:13px">${transactions.length===0?'No transactions yet — hit + New to start':'No results match your filters'}</div>`:''}
+    <div id="list-rows">${filtered.map(t=>{
+      const card=getCard(t.card_id), vendor=getVendor(t.vendor_id);
+      const splits = t.splits && t.splits.length > 0 ? t.splits : null;
+      const catEmoji = primaryCategory(t).split(' ')[0];
+      return `<div class="tx-row">
+        <div style="font-size:20px;line-height:1">${catEmoji}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            ${vendor?esc(vDisplay(vendor)):'<span style="color:#444">—</span>'}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <span class="tag">${dateStr(t.date)}</span>
+            ${card?`<span class="tag" style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:${card.color||'#555'};display:inline-block"></span>${esc(cardLabel(card))}</span>`:''}
+            ${splits && splits.length > 1
+              ? splits.map(s=>`<span class="tag" style="color:#666">${s.category.replace(/^\S+\s/,'')} ${fmt(s.amount)}</span>`).join('')
+              : `<span class="tag" style="color:#666">${primaryCategory(t).replace(/^\S+\s/,'')}</span>`
+            }
+            ${t.note?`<span class="tag" style="color:#555;font-style:italic">${esc(t.note)}</span>`:''}
+            ${t.reconciled?`<span class="tag" style="color:#6db86d;border:1px solid #2a4a2a">REC ✓</span>`:`<span class="tag" style="color:#555">REC?</span>`}
+          </div>
+        </div>
+        <div style="text-align:right;min-width:80px">
+          <div style="font-size:15px;font-weight:500;margin-bottom:6px">${fmt(t.amount)}</div>
+          <div style="display:flex;gap:4px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm" onclick="startEditTx('${t.id}')">EDIT</button>
+            <button class="btn btn-danger" onclick="deleteTx('${t.id}')">DEL</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}</div>
+  </div>`;
+}
+
+
+function renderSimple(filtered, transactions, filter, cards, categories, vendors, total, loading) {
+  const catOptions = categories.map(c => catDisplay(c));
+  return `<div style="padding-top:24px">
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <input class="input" style="flex:1 1 140px;font-size:12px" placeholder="Search vendors\u2026" value="${esc(filter.search||'')}"
+        oninput="state.filter.search=this.value;renderFilteredSimp()" autocomplete="off" />
+      <select class="input" style="flex:0 1 150px;font-size:12px" onchange="updateFilter('card',this.value)">
+        <option value="All"${filter.card==='All'?' selected':''}>All cards</option>
+        ${cards.map(c=>`<option value="${c.id}"${filter.card===c.id?' selected':''}>${esc(cardLabel(c))}</option>`).join('')}
+      </select>
+      <select class="input" style="flex:0 1 150px;font-size:12px" onchange="updateFilter('category',this.value)">
+        <option value="All"${filter.category==='All'?' selected':''}>All categories</option>
+        ${catOptions.map(c=>`<option${filter.category===c?' selected':''}>${c}</option>`).join('')}
+      </select>
+      <select class="input" style="flex:0 1 130px;font-size:12px" onchange="updateFilter('rec',this.value)">
+        <option value="All"${filter.rec==='All'?' selected':''}>All</option>
+        <option value="N"${filter.rec==='N'?' selected':''}>Unreconciled</option>
+        <option value="Y"${filter.rec==='Y'?' selected':''}>Reconciled</option>
+      </select>
+    </div>
+    <div id="simp-count-bar" style="background:#161617;padding:10px 18px;margin-bottom:2px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase">Showing ${filtered.length} of ${transactions.length}</span>
+      <span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#c8f060">${fmt(total)}</span>
+    </div>
+    <div style="border-bottom:1px solid #1e1e1f">
+      <div style="display:grid;grid-template-columns:68px 110px 1fr 80px 36px;gap:10px;padding:7px 14px;background:#141415;font-size:9px;letter-spacing:0.1em;color:#444;text-transform:uppercase;align-items:center">
+        <div>Date</div><div>Card</div><div>Vendor</div><div style="text-align:right">Amount</div><div style="text-align:center">Rec</div>
+      </div>
+      ${loading ? `<div class="loading-overlay"><div class="spinner"></div><span>Loading\u2026</span></div>` : ''}
+      ${!loading && filtered.length===0 ? `<div style="text-align:center;padding:40px 0;color:#333;font-size:13px">${transactions.length===0?'No transactions yet':'No results match your filters'}</div>` : ''}
+      <div id="simp-rows">${filtered.map(t => {
+        const card = getCard(t.card_id), vendor = getVendor(t.vendor_id);
+        return `<div style="display:grid;grid-template-columns:68px 110px 1fr 80px 36px;gap:10px;padding:9px 14px;border-bottom:1px solid #181818;align-items:center;transition:background 0.1s;cursor:pointer" onmouseover="this.style.background='#161617'" onmouseout="this.style.background=''" onclick="openTxModal('${t.id}', [${filtered.map(x=>`'${x.id}'`).join(',')}])">
+          <div style="font-size:11px;color:#555;white-space:nowrap">${new Date(t.date+'T12:00:00').toLocaleDateString('en-US',{month:'numeric',day:'numeric'})}</div>
+          <div style="font-size:11px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${card?`<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:${card.color||'#555'};display:inline-block;flex-shrink:0"></span>${esc(cardLabel(card))}</span>`:'<span style="color:#333">—</span>'}</div>
+          <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${vendor?esc(vDisplay(vendor)):'<span style="color:#333">—</span>'}</div>
+          <div style="font-size:13px;font-weight:500;text-align:right;color:#e8e4d9">${fmt(t.amount)}</div>
+          <div style="text-align:center;font-size:12px">${t.reconciled?'<span style="color:#6db86d">✓</span>':'<span style="color:#333">·</span>'}</div>
+        </div>`;
+      }).join('')}
+      </div>
+    </div>
+  </div>`;
+}
+
+
+function renderFilteredList() {
+  const { transactions, cards, categories, vendors, filter, loading } = state;
+  const filtered = transactions.filter(t => {
+    if (filter.card !== 'All' && t.card_id !== filter.card) return false;
+    if (filter.category !== 'All') {
+      const cats = t.splits ? t.splits.map(s=>s.category) : [t.category];
+      if (!cats.includes(filter.category)) return false;
+    }
+    if (filter.rec === 'Y' && !t.reconciled) return false;
+    if (filter.rec === 'N' && t.reconciled) return false;
+    if (filter.search) {
+      const v = getVendor(t.vendor_id);
+      const s = (v ? vDisplay(v)+' '+v.long_name : '').toLowerCase();
+      if (!s.includes(filter.search.toLowerCase())) return false;
+    }
+    return true;
+  });
+  const total = filtered.reduce((s,t) => s + parseFloat(t.amount), 0);
+
+  // Update count/total bar
+  const bar = document.getElementById('list-count-bar');
+  if (bar) bar.innerHTML = `<span style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase">Showing ${filtered.length} of ${transactions.length}</span><span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#c8f060">${fmt(total)}</span>`;
+
+  // Update rows
+  const rowContainer = document.getElementById('list-rows');
+  if (!rowContainer) return;
+  if (filtered.length === 0) {
+    rowContainer.innerHTML = `<div style="text-align:center;padding:60px 0;color:#333;font-size:13px">${transactions.length===0?'No transactions yet — hit + New to start':'No results match your filters'}</div>`;
+    return;
+  }
+  rowContainer.innerHTML = filtered.map(t => {
+    const card=getCard(t.card_id), vendor=getVendor(t.vendor_id);
+    const splits = t.splits && t.splits.length > 0 ? t.splits : null;
+    const catEmoji = primaryCategory(t).split(' ')[0];
+    return `<div class="tx-row">
+      <div style="font-size:20px;line-height:1">${catEmoji}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          ${vendor?esc(vDisplay(vendor)):'<span style="color:#444">—</span>'}
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <span class="tag">${dateStr(t.date)}</span>
+          ${card?`<span class="tag" style="display:inline-flex;align-items:center;gap:5px"><span style="width:7px;height:7px;border-radius:50%;background:${card.color||'#555'};display:inline-block"></span>${esc(cardLabel(card))}</span>`:''}
+          ${splits && splits.length > 1
+            ? splits.map(s=>`<span class="tag" style="color:#666">${s.category.replace(/^\S+\s/,'')} ${fmt(s.amount)}</span>`).join('')
+            : `<span class="tag" style="color:#666">${primaryCategory(t).replace(/^\S+\s/,'')}</span>`
+          }
+          ${t.note?`<span class="tag" style="color:#555;font-style:italic">${esc(t.note)}</span>`:''}
+          ${t.reconciled?`<span class="tag" style="color:#6db86d;border:1px solid #2a4a2a">REC ✓</span>`:`<span class="tag" style="color:#555">REC?</span>`}
+        </div>
+      </div>
+      <div style="text-align:right;min-width:80px">
+        <div style="font-size:15px;font-weight:500;margin-bottom:6px">${fmt(t.amount)}</div>
+        <div style="display:flex;gap:4px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="startEditTx('${t.id}')">EDIT</button>
+          <button class="btn btn-danger" onclick="deleteTx('${t.id}')">DEL</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+
+function renderFilteredSimp() {
+  const { transactions, cards, vendors, filter } = state;
+  const filtered = transactions.filter(t => {
+    if (filter.card !== 'All' && t.card_id !== filter.card) return false;
+    if (filter.category !== 'All') {
+      const cats = t.splits ? t.splits.map(s=>s.category) : [t.category];
+      if (!cats.includes(filter.category)) return false;
+    }
+    if (filter.rec === 'Y' && !t.reconciled) return false;
+    if (filter.rec === 'N' && t.reconciled) return false;
+    if (filter.search) {
+      const v = getVendor(t.vendor_id);
+      const s = (v ? vDisplay(v)+' '+v.long_name : '').toLowerCase();
+      if (!s.includes(filter.search.toLowerCase())) return false;
+    }
+    return true;
+  });
+  const total = filtered.reduce((s,t) => s + parseFloat(t.amount), 0);
+  const filteredIds = filtered.map(x => x.id);
+
+  const bar = document.getElementById('simp-count-bar');
+  if (bar) bar.innerHTML = `<span style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase">Showing ${filtered.length} of ${transactions.length}</span><span style="font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#c8f060">${fmt(total)}</span>`;
+
+  const rowContainer = document.getElementById('simp-rows');
+  if (!rowContainer) return;
+  if (filtered.length === 0) {
+    rowContainer.innerHTML = `<div style="text-align:center;padding:40px 0;color:#333;font-size:13px">${transactions.length===0?'No transactions yet':'No results match your filters'}</div>`;
+    return;
+  }
+  rowContainer.innerHTML = filtered.map(t => {
+    const card = getCard(t.card_id), vendor = getVendor(t.vendor_id);
+    const cardDot = card
+      ? `<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:6px;height:6px;border-radius:50%;background:${card.color||'#555'};display:inline-block;flex-shrink:0"></span>${esc(cardLabel(card))}</span>`
+      : '<span style="color:#333">—</span>';
+    const idsJson = JSON.stringify(filteredIds);
+    return `<div style="display:grid;grid-template-columns:72px 1fr 80px 80px 36px;gap:10px;padding:9px 14px;border-bottom:1px solid #181818;align-items:center;transition:background 0.1s;cursor:pointer"
+      onmouseover="this.style.background='#161617'" onmouseout="this.style.background=''"
+      onclick="openTxModal('${t.id}', ${idsJson})">
+      <div style="font-size:11px;color:#555;white-space:nowrap">${new Date(t.date+'T12:00:00').toLocaleDateString('en-US',{month:'numeric',day:'numeric'})}</div>
+      <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${vendor?esc(vDisplay(vendor)):'<span style="color:#333">—</span>'}</div>
+      <div style="font-size:13px;font-weight:500;text-align:right;color:#e8e4d9">${fmt(t.amount)}</div>
+      <div style="font-size:11px;color:#666;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cardDot}</div>
+      <div style="text-align:center;font-size:12px">${t.reconciled?'<span style="color:#6db86d">✓</span>':'<span style="color:#333">·</span>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderSummary(transactions, byCategory, grandTotal, cards, vendors) {
+  const byCard   = transactions.reduce((a,t)=>{a[t.card_id]=(a[t.card_id]||0)+parseFloat(t.amount);return a;},{});
+  const byVendor = transactions.reduce((a,t)=>{a[t.vendor_id]=(a[t.vendor_id]||0)+parseFloat(t.amount);return a;},{});
+  return `<div style="padding-top:28px">
+    <div style="background:#161617;padding:20px 22px;margin-bottom:20px">
+      <div style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase;margin-bottom:6px">Total Spent</div>
+      <div style="font-family:'Syne',sans-serif;font-size:36px;font-weight:800;color:#c8f060">${fmt(grandTotal)}</div>
+      <div style="font-size:11px;color:#444;margin-top:4px">${transactions.length} transactions</div>
+    </div>
+    <div style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase;margin-bottom:12px">By Category</div>
+    ${Object.entries(byCategory).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>`
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px"><span>${cat}</span><span style="color:#c8f060">${fmt(amt)}</span></div>
+      <div style="background:#1e1e1f;height:6px"><div class="summary-bar" style="width:${grandTotal>0?amt/grandTotal*100:0}%"></div></div>
+    </div>`).join('')}
+    <div style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase;margin:28px 0 12px">By Card</div>
+    ${Object.entries(byCard).sort((a,b)=>b[1]-a[1]).map(([cid,amt])=>{
+      const c=getCard(cid);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1a1a1b;font-size:13px">
+        <span style="display:flex;align-items:center;gap:8px">${c?`<span style="width:9px;height:9px;border-radius:50%;background:${c.color||'#555'};display:inline-block"></span>`:''} ${c?esc(cardLabel(c)):'<span style="color:#444">Unknown</span>'}</span>
+        <span>${fmt(amt)}</span></div>`;
+    }).join('')}
+    <div style="font-size:10px;letter-spacing:0.12em;color:#555;text-transform:uppercase;margin:28px 0 12px">Top Vendors</div>
+    ${Object.entries(byVendor).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([vid,amt])=>{
+      const v=getVendor(vid);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1a1a1b;font-size:13px">
+        <span>${v?esc(vDisplay(v)):'<span style="color:#444">Unknown</span>'}</span><span>${fmt(amt)}</span></div>`;
+    }).join('')}
+    ${transactions.length===0?`<div style="color:#333;font-size:13px;text-align:center;padding:40px 0">No data yet</div>`:''}
+  </div>`;
+}
+
+function openTxModal(id, filteredIds) {
+  state.modal = { type: 'tx', id, filteredIds: filteredIds || [] };
+  render();
+}
+function txModalNav(dir) {
+  const { id, filteredIds } = state.modal;
+  const idx = filteredIds.indexOf(id);
+  const next = filteredIds[idx + dir];
+  if (next !== undefined) { state.modal.id = next; render(); }
+}
+
+function closeTxModal() {
+  state.modal = null;
+  render();
+}
+
+// ── HANDLERS ──
+function setView(v) {
+  if (v!=='add') { state.editId=null; state.form=blankTx(); state.acText=''; state.acOpen=false; }
+  state.view=v; render();
+}
+function updateForm(k,v)       { state.form[k]=v; }
+function updateCardForm(k,v)   { state.cardForm[k]=v; if(k==='network') state.cardForm.color=NETWORK_COLORS[v]||'#555'; }
+function updateVendorForm(k,v) { state.vendorForm[k]=v; }
+function updateCatForm(k,v)    { state.catForm[k]=v; }
+function updateFilter(k,v)     { state.filter[k]=v; if(state.view==='list') renderFilteredList(); else if(state.view==='simple') renderFilteredSimp(); else render(); }
+function cancelTxEdit()        { state.editId=null; state.form=blankTx(); state.acText=''; state.acOpen=false; state.view='list'; render(); }
+function cancelCardEdit()      { state.editCardId=null; state.cardForm=blankCard(); render(); }
+function cancelVendorEdit()    { state.editVendorId=null; state.vendorForm=blankVendor(); render(); }
+function cancelCatEdit()       { state.editCatId=null; state.catForm=blankCatForm(); render(); }
+function toggleCatSort()        { state.catSort = state.catSort==='asc'?'desc':'asc'; render(); }
+
+function startEditCard(id) {
+  const c=state.cards.find(x=>x.id===id);
+  state.cardForm={nickname:c.nickname||'',network:c.network,last4:c.last4||'',bank:c.bank||'',color:c.color||'#555'};
+  state.editCardId=id; render();
+}
+function startEditVendor(id) {
+  const v=state.vendors.find(x=>x.id===id);
+  state.vendorForm={long_name:v.long_name,nickname:v.nickname||''};
+  state.editVendorId=id; render();
+}
+function startEditCat(id) {
+  const c=state.categories.find(x=>x.id===id);
+  state.catForm={emoji:c.emoji||'',name:c.name,sort_order:String(c.sort_order)};
+  state.editCatId=id; render();
+}
+function startEditTx(id) {
+  const t = state.transactions.find(x=>x.id===id);
+  const v = getVendor(t.vendor_id);
+  let splits = t.splits && t.splits.length > 0 ? [...t.splits] : [];
+  splits = splits.map(s => ({category: s.category, amount: String(s.amount)}));
+  while (splits.length < MAX_SPLITS) splits.push({ category: defaultCat(), amount: '' });
+  state.form = { date:t.date, vendor_id:t.vendor_id||'', amount:String(t.amount), card_id:t.card_id||'', note:t.note||'', reconciled:t.reconciled||false, splits };
+  state.acText = v?vDisplay(v):''; state.acOpen=false;
+  state.editId=id; state.view='add'; render();
+}
+
+document.addEventListener('click', e => {
+  if (state.acOpen && !e.target.closest('.autocomplete-wrap')) { state.acOpen=false; render(); }
+});
+
+loadAll();
+</script>
+</body>
+</html>
